@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'dart:io';
 import '../models/appointment.dart';
 
 class PatientDetailScreen extends StatefulWidget {
   final Appointment appointment;
 
-  const PatientDetailScreen({
-    super.key,
-    required this.appointment,
-  });
+  const PatientDetailScreen({super.key, required this.appointment});
 
   @override
   State<PatientDetailScreen> createState() => _PatientDetailScreenState();
@@ -16,82 +16,98 @@ class PatientDetailScreen extends StatefulWidget {
 class _PatientDetailScreenState extends State<PatientDetailScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  late Future<Map<String, dynamic>> _patientData;
+  Map<String, dynamic>? _apiData;
+  bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 7, vsync: this);
-    _patientData = _loadPatientData();
+
+    // Check if we already have the raw data from the appointment
+    if (widget.appointment.raw.isNotEmpty) {
+      // Use the raw data we already have from the list API
+      setState(() {
+        _apiData = widget.appointment.raw;
+        _loading = false;
+      });
+    } else {
+      // If no raw data, try to fetch it
+      _loadPatientData();
+    }
   }
 
-  Future<Map<String, dynamic>> _loadPatientData() async {
-    // Simulate API call for patient data
-    await Future.delayed(const Duration(milliseconds: 500));
-    
-    // Return mock data for all tabs
-    return {
-      'info': {
-        'patientId': widget.appointment.id,
-        'name': widget.appointment.patientName,
-        'age': 45,
-        'gender': 'Male',
-        'bloodGroup': 'O+',
-        'allergies': 'Penicillin',
-        'contact': '555-0123',
-        'address': '123 Main St, City',
-      },
-      'preop': {
-        'assessmentDate': '2024-01-10',
-        'bloodPressure': '120/80',
-        'heartRate': '72 bpm',
-        'ecg': 'Normal',
-        'bloodTests': 'Within normal limits',
-        'anesthesiaRisk': 'Low',
-        'notes': 'Cleared for surgery',
-      },
-      'intraop': {
-        'surgeryStart': '09:30',
-        'surgeryEnd': '11:45',
-        'anesthesiaType': 'General',
-        'vitalSigns': 'Stable throughout',
-        'bloodLoss': '200ml',
-        'fluids': '1500ml crystalloid',
-        'complications': 'None',
-      },
-      'recovery': {
-        'recoveryStart': '11:50',
-        'dischargeTime': '16:30',
-        'painScore': '3/10',
-        'medications': 'Paracetamol 1g Q6H',
-        'vitals': 'Stable',
-        'diet': 'Clear fluids',
-        'instructions': 'Follow up in 1 week',
-      },
-      'investigations': {
-        'bloodWork': 'CBC, LFT, RFT normal',
-        'urineAnalysis': 'Normal',
-        'culture': 'No growth',
-        'pathology': 'Pending',
-        'microbiology': 'Pending',
-      },
-      'radio': {
-        'xray': 'Chest X-ray: Clear',
-        'ctScan': 'Abdomen CT: Appendicitis confirmed',
-        'ultrasound': 'Not performed',
-        'mri': 'Not required',
-        'reports': 'Available in system',
-      },
-      'procedures': {
-        'procedureName': 'Appendectomy',
-        'procedureCode': '44970',
-        'surgeon': 'Dr. Smith',
-        'assistant': 'Dr. Johnson',
-        'anesthetist': 'Dr. Williams',
-        'notes': 'Laparoscopic procedure',
-        'consent': 'Signed',
-      },
-    };
+  Future<void> _loadPatientData() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final client = await _getHttpClient();
+
+      // Try different possible API endpoints
+      final response = await client.get(
+        Uri.parse(
+          'http://192.168.100.8/api/appointments/${widget.appointment.id}',
+        ),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(response.body);
+
+        // Check different response formats
+        if (data.containsKey('id')) {
+          // Direct appointment object
+          setState(() {
+            _apiData = data;
+            _loading = false;
+          });
+        } else if (data['success'] == true) {
+          // Success wrapper format
+          final responseData = data['data'] as Map<String, dynamic>?;
+          if (responseData != null) {
+            setState(() {
+              _apiData = responseData;
+              _loading = false;
+            });
+          } else {
+            setState(() {
+              _error = 'No data found in response';
+              _loading = false;
+            });
+          }
+        } else {
+          setState(() {
+            _error = data['message'] ?? 'Failed to load patient data';
+            _loading = false;
+          });
+        }
+      } else {
+        setState(() {
+          _error = 'Server error: ${response.statusCode}';
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _error = 'Failed to load patient data: $e';
+        _loading = false;
+      });
+      print('Error loading patient data: $e');
+    }
+  }
+
+  Future<http.Client> _getHttpClient() async {
+    final HttpClient client = HttpClient();
+    client.badCertificateCallback =
+        (X509Certificate cert, String host, int port) => true;
+    return http.Client();
   }
 
   @override
@@ -119,204 +135,342 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
           ],
         ),
       ),
-      body: FutureBuilder<Map<String, dynamic>>(
-        future: _patientData,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (snapshot.hasError) {
-            return Center(
-              child: Text('Error: ${snapshot.error}'),
-            );
-          }
-
-          final data = snapshot.data!;
-
-          return TabBarView(
-            controller: _tabController,
-            children: [
-              _buildInfoTab(data['info']),
-              _buildPreopTab(data['preop']),
-              _buildIntraopTab(data['intraop']),
-              _buildRecoveryTab(data['recovery']),
-              _buildInvestigationsTab(data['investigations']),
-              _buildRadioTab(data['radio']),
-              _buildProceduresTab(data['procedures']),
-            ],
-          );
-        },
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _buildInfoTab(),
+          _buildPreopTab(),
+          _buildIntraopTab(),
+          _buildRecoveryTab(),
+          _buildInvestigationsTab(),
+          _buildRadioTab(),
+          _buildProceduresTab(),
+        ],
       ),
     );
   }
 
-  Widget _buildInfoTab(Map<String, dynamic> info) {
+  Widget _buildInfoTab() {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 48, color: Colors.red),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32.0),
+              child: Text(_error!, textAlign: TextAlign.center),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadPatientData,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Use either the API data or the appointment data we already have
+    final data = _apiData ?? widget.appointment.raw;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Appointment Information
+          _buildSectionCard('Appointment Information', [
+            _buildInfoRow('Appointment ID', widget.appointment.id),
+            _buildInfoRow('Resource Type', widget.appointment.resourceType),
+            _buildStatusRow('Status', widget.appointment.status),
+            _buildInfoRow('Start', _formatDateTime(widget.appointment.start)),
+            _buildInfoRow('End', _formatDateTime(widget.appointment.end)),
+            _buildInfoRow(
+              'Duration',
+              '${_calculateDuration(widget.appointment.start, widget.appointment.end)} minutes',
+            ),
+            if (widget.appointment.createdAt.isNotEmpty)
+              _buildInfoRow('Created', widget.appointment.createdAt),
+          ]),
+
+          const SizedBox(height: 16),
+
+          // Patient Information
           _buildSectionCard('Patient Information', [
-            _buildInfoRow('Patient ID', widget.appointment.id),
-            _buildInfoRow('Name', widget.appointment.patientName),
-            _buildInfoRow('Age', info['age'].toString()),
-            _buildInfoRow('Gender', info['gender']),
-            _buildInfoRow('Blood Group', info['bloodGroup']),
-          ]),
-          
-          const SizedBox(height: 16),
-          
-          _buildSectionCard('Contact Information', [
-            _buildInfoRow('Contact', info['contact']),
-            _buildInfoRow('Address', info['address']),
-          ]),
-          
-          const SizedBox(height: 16),
-          
-          _buildSectionCard('Medical Information', [
-            _buildInfoRow('Allergies', info['allergies']),
+            _buildInfoRow('Patient Name', widget.appointment.patientName),
+            _buildInfoRow('Patient ID', _extractPatientId(data)),
             if (widget.appointment.diagnosis != null)
               _buildInfoRow('Diagnosis', widget.appointment.diagnosis!),
+            if (widget.appointment.procedureCode != null)
+              _buildInfoRow(
+                'Procedure Code',
+                widget.appointment.procedureCode!,
+              ),
           ]),
-          
+
           const SizedBox(height: 16),
-          
-          _buildSectionCard('Appointment Details', [
-            _buildInfoRow('Doctor', widget.appointment.doctorName),
-            _buildInfoRow('Status', widget.appointment.status),
-            _buildInfoRow('Date', widget.appointment.start.toLocal().toString().split(' ')[0]),
-            _buildInfoRow('Time', 
-              '${widget.appointment.start.toLocal().toString().split(' ')[1].substring(0, 5)} - '
-              '${widget.appointment.end.toLocal().toString().split(' ')[1].substring(0, 5)}'
-            ),
+
+          // Doctor Information
+          _buildSectionCard('Doctor Information', [
+            _buildInfoRow('Doctor Name', widget.appointment.doctorName),
+            _buildInfoRow('Doctor ID', _extractDoctorId(data)),
           ]),
+
+          const SizedBox(height: 16),
+
+          // Location Information
+          _buildSectionCard('Location Information', [
+            _buildInfoRow('Location', _extractLocation(data)),
+            _buildInfoRow('Room', _extractRoomNumber(data)),
+          ]),
+
+          const SizedBox(height: 16),
+
+          // Medical Details from Raw Data
+          if (data.isNotEmpty) ...[
+            _buildMedicalDetailsCard(data),
+            const SizedBox(height: 16),
+          ],
+
+          // Participants Section
+          if (widget.appointment.participants.isNotEmpty)
+            _buildParticipantsCard(widget.appointment.participants),
         ],
       ),
     );
   }
 
-  Widget _buildPreopTab(Map<String, dynamic> preop) {
-    return _buildGenericTab(
-      title: 'Preoperative Assessment',
-      icon: Icons.medical_services,
-      data: preop,
+  Widget _buildMedicalDetailsCard(Map<String, dynamic> data) {
+    // Try to get raw data first, then fall back to direct properties
+    final rawData = data['raw'] as Map<String, dynamic>? ?? data;
+
+    final serviceType = rawData['serviceType'] as List?;
+    final reasonCode = rawData['reasonCode'] as List?;
+    final comment = rawData['comment'] as String?;
+    final priority = rawData['priority'] as int?;
+    final minutesDuration = rawData['minutesDuration'] as int?;
+
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Medical Details',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+
+            if (minutesDuration != null)
+              _buildInfoRow('Duration (minutes)', minutesDuration.toString()),
+
+            if (serviceType != null && serviceType.isNotEmpty)
+              _buildMedicalDetailSection('Service Type', serviceType),
+
+            if (reasonCode != null && reasonCode.isNotEmpty)
+              _buildMedicalDetailSection('Reason Code', reasonCode),
+
+            if (comment != null && comment.isNotEmpty)
+              _buildInfoRow('Comment', comment),
+
+            if (priority != null)
+              _buildInfoRow('Priority', priority.toString()),
+          ],
+        ),
+      ),
     );
   }
 
-  Widget _buildIntraopTab(Map<String, dynamic> intraop) {
-    return _buildGenericTab(
-      title: 'Intraoperative Details',
-      icon: Icons.science,
-      data: intraop,
+  Widget _buildMedicalDetailSection(String title, List<dynamic> items) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '$title:',
+          style: const TextStyle(
+            fontWeight: FontWeight.w500,
+            color: Colors.grey,
+          ),
+        ),
+        const SizedBox(height: 4),
+        ...items.map((item) {
+          if (item is Map<String, dynamic>) {
+            final text = item['text'] as String?;
+            final coding = item['coding'] as List?;
+
+            if (text != null) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('• $text', style: const TextStyle(fontSize: 14)),
+                    if (coding != null && coding.isNotEmpty)
+                      ...coding.map((code) {
+                        if (code is Map<String, dynamic>) {
+                          final system = code['system'] as String?;
+                          final codeValue = code['code'] as String?;
+                          final display = code['display'] as String?;
+
+                          return Padding(
+                            padding: const EdgeInsets.only(left: 16, top: 4),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (display != null)
+                                  Text(
+                                    '  - $display',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                if (codeValue != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 16),
+                                    child: Text(
+                                      '    Code: $codeValue',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.grey[500],
+                                      ),
+                                    ),
+                                  ),
+                                if (system != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 16),
+                                    child: Text(
+                                      '    System: ${_shortenUrl(system)}',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.grey[400],
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          );
+                        }
+                        return const SizedBox();
+                      }).toList(),
+                  ],
+                ),
+              );
+            }
+          }
+          return const SizedBox();
+        }).toList(),
+        const SizedBox(height: 12),
+      ],
     );
   }
 
-  Widget _buildRecoveryTab(Map<String, dynamic> recovery) {
-    return _buildGenericTab(
-      title: 'Recovery & Post-op',
-      icon: Icons.healing,
-      data: recovery,
-    );
-  }
+  Widget _buildParticipantsCard(List<dynamic> participants) {
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Participants',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            ...participants.map((participant) {
+              if (participant is Map<String, dynamic>) {
+                final actor = participant['actor'] as Map<String, dynamic>?;
+                final status = participant['status'] as String?;
+                final required = participant['required'] as String?;
 
-  Widget _buildInvestigationsTab(Map<String, dynamic> investigations) {
-    return _buildGenericTab(
-      title: 'Investigations',
-      icon: Icons.biotech,
-      data: investigations,
-    );
-  }
+                final display = actor?['display'] as String?;
+                final reference = actor?['reference'] as String?;
 
-  Widget _buildRadioTab(Map<String, dynamic> radio) {
-    return _buildGenericTab(
-      title: 'Radiology',
-      icon: Icons.scanner,
-      data: radio,
-    );
-  }
+                // Determine participant type
+                String type = 'Unknown';
+                if (reference?.contains('Patient') == true) type = 'Patient';
+                if (reference?.contains('Practitioner') == true)
+                  type = 'Doctor';
+                if (reference?.contains('Location') == true) type = 'Location';
 
-  Widget _buildProceduresTab(Map<String, dynamic> procedures) {
-    return _buildGenericTab(
-      title: 'Procedures',
-      icon: Icons.medical_information,
-      data: procedures,
-    );
-  }
-
-  Widget _buildGenericTab({
-    required String title,
-    required IconData icon,
-    required Map<String, dynamic> data,
-  }) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Card(
-            elevation: 2,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  Icon(icon, size: 48, color: Colors.blue),
-                  const SizedBox(height: 16),
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _getParticipantColor(type),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              type,
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              display ?? 'Unknown',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (reference != null)
+                        Padding(
+                          padding: const EdgeInsets.only(left: 16, top: 2),
+                          child: Text(
+                            'ID: $reference',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ),
+                      if (status != null)
+                        Padding(
+                          padding: const EdgeInsets.only(left: 16, top: 2),
+                          child: Text(
+                            'Status: $status',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: _getStatusColor(status),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 8),
+                      const Divider(height: 1),
+                    ],
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'For ${widget.appointment.patientName}',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          
-          const SizedBox(height: 16),
-          
-          Card(
-            elevation: 2,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: data.entries.map((entry) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _buildInfoRow(
-                      _capitalize(entry.key),
-                      entry.value.toString(),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-          ),
-          
-          const SizedBox(height: 16),
-          
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 8.0),
-            child: Text(
-              'Note: This is sample data. Connect to your API to load real patient information.',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ),
-        ],
+                );
+              }
+              return const SizedBox();
+            }).toList(),
+          ],
+        ),
       ),
     );
   }
@@ -331,10 +485,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
           children: [
             Text(
               title,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             ...children,
@@ -351,7 +502,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 120,
+            width: 140,
             child: Text(
               '$label:',
               style: const TextStyle(
@@ -371,10 +522,296 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
     );
   }
 
-  String _capitalize(String text) {
-    return text.replaceAllMapped(
-      RegExp(r'\b(\w)'),
-      (match) => match.group(0)!.toUpperCase(),
-    ).replaceAll('_', ' ');
+  Widget _buildStatusRow(String label, String value) {
+    final Map<String, Color> statusColors = {
+      'booked': Colors.green,
+      'pending': Colors.orange,
+      'arrived': Colors.blue,
+      'fulfilled': Colors.purple,
+      'cancelled': Colors.red,
+      'noshow': Colors.red,
+    };
+
+    final color = statusColors[value.toLowerCase()] ?? Colors.grey;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 140,
+            child: Text(
+              '$label:',
+              style: const TextStyle(
+                fontWeight: FontWeight.w500,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: color.withOpacity(0.3)),
+            ),
+            child: Text(
+              value.toUpperCase(),
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper methods
+  String _formatDateTime(DateTime dateTime) {
+    final localTime = dateTime.toLocal();
+    return '${localTime.day}/${localTime.month}/${localTime.year} ${localTime.hour}:${localTime.minute.toString().padLeft(2, '0')}';
+  }
+
+  int _calculateDuration(DateTime start, DateTime end) {
+    return end.difference(start).inMinutes;
+  }
+
+  String _extractPatientId(Map<String, dynamic> data) {
+    try {
+      final rawData = data['raw'] as Map<String, dynamic>? ?? data;
+      final participants =
+          rawData['participant'] as List? ?? widget.appointment.participants;
+
+      if (participants != null) {
+        for (var participant in participants) {
+          if (participant is Map<String, dynamic>) {
+            final actor = participant['actor'] as Map<String, dynamic>?;
+            final reference = actor?['reference'] as String?;
+            if (reference?.contains('Patient/') == true) {
+              return reference!;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print('Error extracting patient ID: $e');
+    }
+    return 'Unknown';
+  }
+
+  String _extractDoctorId(Map<String, dynamic> data) {
+    try {
+      final rawData = data['raw'] as Map<String, dynamic>? ?? data;
+      final participants =
+          rawData['participant'] as List? ?? widget.appointment.participants;
+
+      if (participants != null) {
+        for (var participant in participants) {
+          if (participant is Map<String, dynamic>) {
+            final actor = participant['actor'] as Map<String, dynamic>?;
+            final reference = actor?['reference'] as String?;
+            if (reference?.contains('Practitioner/') == true) {
+              return reference!;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print('Error extracting doctor ID: $e');
+    }
+    return 'Unknown';
+  }
+
+  String _extractLocation(Map<String, dynamic> data) {
+    try {
+      final rawData = data['raw'] as Map<String, dynamic>? ?? data;
+      final participants =
+          rawData['participant'] as List? ?? widget.appointment.participants;
+
+      if (participants != null) {
+        for (var participant in participants) {
+          if (participant is Map<String, dynamic>) {
+            final actor = participant['actor'] as Map<String, dynamic>?;
+            final display = actor?['display'] as String?;
+            if (display != null &&
+                actor?['reference']?.contains('Location/') == true) {
+              return display;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print('Error extracting location: $e');
+    }
+    return 'Unknown';
+  }
+
+  String _extractRoomNumber(Map<String, dynamic> data) {
+    try {
+      final rawData = data['raw'] as Map<String, dynamic>? ?? data;
+      final participants =
+          rawData['participant'] as List? ?? widget.appointment.participants;
+
+      if (participants != null) {
+        for (var participant in participants) {
+          if (participant is Map<String, dynamic>) {
+            final actor = participant['actor'] as Map<String, dynamic>?;
+            final reference = actor?['reference'] as String?;
+            if (reference?.contains('Location/') == true) {
+              return reference!.substring(9); // Remove 'Location/' prefix
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print('Error extracting room number: $e');
+    }
+    return 'Unknown';
+  }
+
+  String _shortenUrl(String url) {
+    final uri = Uri.parse(url);
+    return '${uri.host}${uri.path}';
+  }
+
+  Color _getParticipantColor(String type) {
+    switch (type.toLowerCase()) {
+      case 'patient':
+        return Colors.blue;
+      case 'doctor':
+        return Colors.green;
+      case 'location':
+        return Colors.purple;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'accepted':
+        return Colors.green;
+      case 'tentative':
+        return Colors.orange;
+      case 'declined':
+        return Colors.red;
+      case 'needs-action':
+        return Colors.blue;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  // Other tabs (simplified for now)
+  Widget _buildPreopTab() {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.medical_services, size: 64, color: Colors.blue),
+          SizedBox(height: 16),
+          Text('Preoperative Assessment'),
+          SizedBox(height: 8),
+          Text(
+            'This tab will show preoperative data',
+            style: TextStyle(color: Colors.grey),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIntraopTab() {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.science, size: 64, color: Colors.green),
+          SizedBox(height: 16),
+          Text('Intraoperative Details'),
+          SizedBox(height: 8),
+          Text(
+            'This tab will show intraoperative data',
+            style: TextStyle(color: Colors.grey),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecoveryTab() {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.healing, size: 64, color: Colors.orange),
+          SizedBox(height: 16),
+          Text('Recovery & Post-op'),
+          SizedBox(height: 8),
+          Text(
+            'This tab will show recovery data',
+            style: TextStyle(color: Colors.grey),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInvestigationsTab() {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.biotech, size: 64, color: Colors.purple),
+          SizedBox(height: 16),
+          Text('Investigations'),
+          SizedBox(height: 8),
+          Text(
+            'This tab will show lab results and investigations',
+            style: TextStyle(color: Colors.grey),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRadioTab() {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.scanner, size: 64, color: Colors.red),
+          SizedBox(height: 16),
+          Text('Radiology'),
+          SizedBox(height: 8),
+          Text(
+            'This tab will show imaging reports',
+            style: TextStyle(color: Colors.grey),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProceduresTab() {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.medical_information, size: 64, color: Colors.teal),
+          SizedBox(height: 16),
+          Text('Procedures'),
+          SizedBox(height: 8),
+          Text(
+            'This tab will show procedure details',
+            style: TextStyle(color: Colors.grey),
+          ),
+        ],
+      ),
+    );
   }
 }
