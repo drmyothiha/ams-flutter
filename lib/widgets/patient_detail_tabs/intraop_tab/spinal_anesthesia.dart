@@ -10,6 +10,10 @@ class SpinalAnesthesiaSection extends StatefulWidget {
   final DateTime? anesthesiaStartTime;
   final DateTime? surgeryStartTime;
   final VoidCallback onStartSurgery;
+  final Map<String, dynamic> spinalDrugs;
+  final Map<String, dynamic> spinalProcedure;
+  final Function(String, dynamic) onUpdateSpinalDrugs;
+  final Function(String, dynamic) onUpdateSpinalProcedure;
 
   const SpinalAnesthesiaSection({
     super.key,
@@ -21,6 +25,10 @@ class SpinalAnesthesiaSection extends StatefulWidget {
     required this.anesthesiaStartTime,
     required this.surgeryStartTime,
     required this.onStartSurgery,
+    required this.spinalDrugs,
+    required this.spinalProcedure,
+    required this.onUpdateSpinalDrugs,
+    required this.onUpdateSpinalProcedure,
   });
 
   @override
@@ -28,22 +36,6 @@ class SpinalAnesthesiaSection extends StatefulWidget {
 }
 
 class _SpinalAnesthesiaSectionState extends State<SpinalAnesthesiaSection> {
-  // Spinal drugs
-  final TextEditingController heavyBupivacaineController = TextEditingController();
-  final TextEditingController spinalAdditiveController = TextEditingController(text: 'Fentanyl');
-  final TextEditingController spinalAdditiveDoseController = TextEditingController(text: '20');
-  final TextEditingController ondansetronController = TextEditingController();
-  final TextEditingController ephedrineController = TextEditingController();
-  final TextEditingController phenylpherineController = TextEditingController();
-  
-  // Procedure details
-  String? selectedNeedleSize;
-  String? selectedEpiduralNeedleSize;
-  bool epiduralCatheter = false;
-  String? selectedSpinalSpace;
-  String? selectedEpiduralSpace;
-  String position = 'Lying';
-  
   // Current vital signs (with sliders)
   int hr = 80;
   int sbp = 120;
@@ -53,47 +45,118 @@ class _SpinalAnesthesiaSectionState extends State<SpinalAnesthesiaSection> {
   double temp = 36.5;
   int painScore = 0;
   
-  // Infusion and drug dropdowns
+  // Infusion
   String? infusionType;
   final List<String> infusionTypes = ['None', 'NS', 'RL', 'HES', 'Blood', 'Other'];
   
-  String? selectedDrugType;
-  final List<String> drugTypes = [
+  // THREE DRUG INPUTS
+  final List<DrugInput> drugInputs = [
+    DrugInput(
+      defaultName: 'Ondansetron',
+      defaultDosage: '4',
+      defaultRoute: 'IV',
+    ),
+    DrugInput(
+      defaultName: 'Midazolam',
+      defaultDosage: '2',
+      defaultRoute: 'IV',
+    ),
+    DrugInput(
+      defaultName: 'Ephedrine',
+      defaultDosage: '6',
+      defaultRoute: 'IV',
+    ),
+  ];
+  
+  // Additional drug options
+  final List<String> drugOptions = [
+    'Ondansetron',
+    'Midazolam',
+    'Ephedrine',
     'Fentanyl',
     'Morphine',
     'Diamorphine',
-    'Midazolam',
     'Ketamine',
     'Propofol',
+    'Atropine',
+    'Glycopyrrolate',
+    'Dexamethasone',
+    'Metoclopramide',
+    'Phenylephrine',
     'Others'
   ];
   
-  final TextEditingController drugDoseController = TextEditingController();
-  final TextEditingController drugRouteController = TextEditingController();
+  @override
+  void initState() {
+    super.initState();
+    // Load any previously saved drug inputs
+    _loadDrugInputsFromStorage();
+  }
+  
+  void _loadDrugInputsFromStorage() {
+    // Load drug inputs from shared preferences or use defaults
+    // This could be enhanced to load from previous records
+  }
   
   void _addRecord() {
-    final record = AnesthesiaRecord(
-      time: DateTime.now(),
-      hr: hr,
-      sbp: sbp,
-      dbp: dbp,
-      rr: rr,
-      spo2: spo2,
-      temp: temp,
-      painScore: painScore,
-      infusionType: infusionType != 'None' ? infusionType : null,
-      drugName: selectedDrugType,
-      drugDose: drugDoseController.text.isNotEmpty ? drugDoseController.text : null,
-      drugRoute: drugRouteController.text.isNotEmpty ? drugRouteController.text : null,
-    );
-    
-    widget.onAddRecord(record);
-    
-    // Clear drug inputs
+  // Collect all drugs that have a name
+  final administeredDrugs = <DrugAdministered>[];
+  
+  for (final drugInput in drugInputs) {
+    if (drugInput.name.isNotEmpty && drugInput.dosage.isNotEmpty) {
+      administeredDrugs.add(DrugAdministered(
+        drugName: drugInput.name,
+        dosage: drugInput.dosage,
+        route: drugInput.route,
+      ));
+    }
+  }
+  
+  // Check if there's a fourth "other" drug
+  if (widget.spinalDrugs['otherDrug'] != null && 
+      widget.spinalDrugs['otherDrug'].toString().isNotEmpty &&
+      widget.spinalDrugs['otherDrugDose'] != null &&
+      widget.spinalDrugs['otherDrugDose'].toString().isNotEmpty) {
+    administeredDrugs.add(DrugAdministered(
+      drugName: widget.spinalDrugs['otherDrug'].toString(),
+      dosage: widget.spinalDrugs['otherDrugDose'].toString(),
+      route: widget.spinalDrugs['otherDrugRoute']?.toString() ?? 'IV',
+    ));
+  }
+  
+  final record = AnesthesiaRecord(
+    time: DateTime.now(),
+    hr: hr,
+    sbp: sbp,
+    dbp: dbp,
+    rr: rr,
+    spo2: spo2,
+    temp: temp,
+    painScore: painScore,
+    infusionType: infusionType != 'None' ? infusionType : null,
+    drugsAdministered: administeredDrugs, // Add this required parameter
+  );
+  
+  widget.onAddRecord(record);
+  
+  // Clear drug inputs after recording
+  _clearDrugInputs();
+}
+  
+  void _clearDrugInputs() {
     setState(() {
-      selectedDrugType = null;
-      drugDoseController.clear();
-      drugRouteController.clear();
+      for (final drugInput in drugInputs) {
+        drugInput.dosageController.clear();
+        drugInput.name = drugInput.defaultName;
+        drugInput.dosage = drugInput.defaultDosage;
+        drugInput.route = drugInput.defaultRoute;
+      }
+      widget.spinalDrugs['otherDrug'] = '';
+      widget.spinalDrugs['otherDrugDose'] = '';
+      widget.spinalDrugs['otherDrugRoute'] = 'IV';
+      widget.onUpdateSpinalDrugs('otherDrug', '');
+      widget.onUpdateSpinalDrugs('otherDrugDose', '');
+      widget.onUpdateSpinalDrugs('otherDrugRoute', 'IV');
     });
   }
   
@@ -117,11 +180,7 @@ class _SpinalAnesthesiaSectionState extends State<SpinalAnesthesiaSection> {
               IconButton(
                 icon: const Icon(Icons.remove, size: 16),
                 onPressed: () {
-                  if (value is int) {
-                    if (value > min) onChanged(value - 1);
-                  } else if (value is double) {
-                    if (value > min) onChanged(value - 0.1);
-                  }
+                  if (value is int && value > min) onChanged(value - 1);
                 },
                 padding: EdgeInsets.zero,
               ),
@@ -143,11 +202,7 @@ class _SpinalAnesthesiaSectionState extends State<SpinalAnesthesiaSection> {
               IconButton(
                 icon: const Icon(Icons.add, size: 16),
                 onPressed: () {
-                  if (value is int) {
-                    if (value < max) onChanged(value + 1);
-                  } else if (value is double) {
-                    if (value < max) onChanged(value + 0.1);
-                  }
+                  if (value is int && value < max) onChanged(value + 1);
                 },
                 padding: EdgeInsets.zero,
               ),
@@ -359,40 +414,54 @@ class _SpinalAnesthesiaSectionState extends State<SpinalAnesthesiaSection> {
                             ],
                           ),
                           
-                          // Infusion and drug info
-                          if (record.infusionType != null || record.drugName != null)
+                          // Infusion
+                          if (record.infusionType != null)
                             Padding(
                               padding: const EdgeInsets.only(top: 8.0),
-                              child: Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue[50],
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: Colors.blue),
+                                ),
+                                child: Text(
+                                  'Infusion: ${record.infusionType}',
+                                  style: const TextStyle(fontSize: 12, color: Colors.blue),
+                                ),
+                              ),
+                            ),
+                          
+                          // Drugs administered
+                          if (record.drugsAdministered.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  if (record.infusionType != null)
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: Colors.blue[50],
-                                        borderRadius: BorderRadius.circular(6),
-                                        border: Border.all(color: Colors.blue),
-                                      ),
-                                      child: Text(
-                                        'Infusion: ${record.infusionType}',
-                                        style: const TextStyle(fontSize: 12, color: Colors.blue),
-                                      ),
-                                    ),
-                                  if (record.drugName != null)
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: Colors.green[50],
-                                        borderRadius: BorderRadius.circular(6),
-                                        border: Border.all(color: Colors.green),
-                                      ),
-                                      child: Text(
-                                        '${record.drugName} ${record.drugDose ?? ''} ${record.drugRoute ?? ''}',
-                                        style: const TextStyle(fontSize: 12, color: Colors.green),
-                                      ),
-                                    ),
+                                  const Text(
+                                    'Drugs Administered:',
+                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 4,
+                                    children: record.drugsAdministered.map((drug) {
+                                      return Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: Colors.green[50],
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(color: Colors.green),
+                                        ),
+                                        child: Text(
+                                          '${drug.drugName} ${drug.dosage} ${drug.route}',
+                                          style: const TextStyle(fontSize: 12, color: Colors.green),
+                                        ),
+                                      );
+                                    }).toList(),
+                                  ),
                                 ],
                               ),
                             ),
@@ -462,6 +531,112 @@ class _SpinalAnesthesiaSectionState extends State<SpinalAnesthesiaSection> {
     );
   }
   
+  Widget _buildDrugInput(int index, DrugInput drugInput) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey!),
+        borderRadius: BorderRadius.circular(8),
+        color: Colors.grey[50],
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Drug ${index + 1}',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: DropdownButtonFormField<String>(
+                  value: drugInput.name,
+                  decoration: const InputDecoration(
+                    labelText: 'Drug Name',
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                  ),
+                  items: drugOptions.map((drug) {
+                    return DropdownMenuItem(
+                      value: drug,
+                      child: Text(drug, style: const TextStyle(fontSize: 14)),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      drugInput.name = value ?? drugInput.defaultName;
+                      // Update default dosage based on drug
+                      if (value == 'Ondansetron') drugInput.dosage = '4';
+                      if (value == 'Midazolam') drugInput.dosage = '2';
+                      if (value == 'Ephedrine') drugInput.dosage = '6';
+                      drugInput.dosageController.text = drugInput.dosage;
+                    });
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 1,
+                child: TextField(
+                  controller: drugInput.dosageController,
+                  decoration: InputDecoration(
+                    labelText: 'Dose',
+                    border: const OutlineInputBorder(),
+                    suffixText: _getDoseUnit(drugInput.name),
+                  ),
+                  onChanged: (value) {
+                    drugInput.dosage = value;
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 80,
+                child: TextField(
+                  controller: TextEditingController(text: drugInput.route),
+                  decoration: const InputDecoration(
+                    labelText: 'Route',
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (value) {
+                    drugInput.route = value;
+                  },
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+  
+  String _getDoseUnit(String drugName) {
+    switch (drugName) {
+      case 'Ondansetron':
+      case 'Midazolam':
+      case 'Dexamethasone':
+        return 'mg';
+      case 'Ephedrine':
+      case 'Phenylephrine':
+        return 'mg';
+      case 'Fentanyl':
+      case 'Morphine':
+      case 'Diamorphine':
+        return 'mcg';
+      case 'Ketamine':
+        return 'mg';
+      case 'Propofol':
+        return 'mg';
+      case 'Atropine':
+      case 'Glycopyrrolate':
+        return 'mg';
+      default:
+        return '';
+    }
+  }
+  
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -498,72 +673,50 @@ class _SpinalAnesthesiaSectionState extends State<SpinalAnesthesiaSection> {
                       children: [
                         Expanded(
                           child: TextField(
-                            controller: heavyBupivacaineController,
+                            controller: TextEditingController(
+                              text: widget.spinalDrugs['heavyBupivacaine']?.toString() ?? ''
+                            ),
                             decoration: const InputDecoration(
                               labelText: 'Heavy Bupivacaine (mg)',
                               border: OutlineInputBorder(),
                               hintText: 'e.g., 12.5',
                             ),
                             keyboardType: TextInputType.number,
+                            onChanged: (value) {
+                              widget.onUpdateSpinalDrugs('heavyBupivacaine', value);
+                            },
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: TextField(
-                            controller: spinalAdditiveController,
+                            controller: TextEditingController(
+                              text: widget.spinalDrugs['spinalAdditive']?.toString() ?? 'Fentanyl'
+                            ),
                             decoration: const InputDecoration(
                               labelText: 'Spinal Additive',
                               border: OutlineInputBorder(),
                             ),
+                            onChanged: (value) {
+                              widget.onUpdateSpinalDrugs('spinalAdditive', value);
+                            },
                           ),
                         ),
                         const SizedBox(width: 12),
                         SizedBox(
                           width: 120,
                           child: TextField(
-                            controller: spinalAdditiveDoseController,
+                            controller: TextEditingController(
+                              text: widget.spinalDrugs['spinalAdditiveDose']?.toString() ?? '20'
+                            ),
                             decoration: const InputDecoration(
                               labelText: 'Dose (mcg)',
                               border: OutlineInputBorder(),
                             ),
                             keyboardType: TextInputType.number,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: ondansetronController,
-                            decoration: const InputDecoration(
-                              labelText: 'Ondansetron (mg)',
-                              border: OutlineInputBorder(),
-                            ),
-                            keyboardType: TextInputType.number,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: TextField(
-                            controller: ephedrineController,
-                            decoration: const InputDecoration(
-                              labelText: 'Ephedrine (mg)',
-                              border: OutlineInputBorder(),
-                            ),
-                            keyboardType: TextInputType.number,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: TextField(
-                            controller: phenylpherineController,
-                            decoration: const InputDecoration(
-                              labelText: 'Phenylpherine (mcg)',
-                              border: OutlineInputBorder(),
-                            ),
-                            keyboardType: TextInputType.number,
+                            onChanged: (value) {
+                              widget.onUpdateSpinalDrugs('spinalAdditiveDose', value);
+                            },
                           ),
                         ),
                       ],
@@ -603,11 +756,9 @@ class _SpinalAnesthesiaSectionState extends State<SpinalAnesthesiaSection> {
                           children: ['23', '24', '25', '26'].map((size) {
                             return ChoiceChip(
                               label: Text('${size}G'),
-                              selected: selectedNeedleSize == size,
+                              selected: widget.spinalProcedure['needleSize'] == size,
                               onSelected: (selected) {
-                                setState(() {
-                                  selectedNeedleSize = selected ? size : null;
-                                });
+                                widget.onUpdateSpinalProcedure('needleSize', selected ? size : null);
                               },
                             );
                           }).toList(),
@@ -626,11 +777,9 @@ class _SpinalAnesthesiaSectionState extends State<SpinalAnesthesiaSection> {
                           children: ['18', '19'].map((size) {
                             return ChoiceChip(
                               label: Text('${size}G'),
-                              selected: selectedEpiduralNeedleSize == size,
+                              selected: widget.spinalProcedure['epiduralNeedleSize'] == size,
                               onSelected: (selected) {
-                                setState(() {
-                                  selectedEpiduralNeedleSize = selected ? size : null;
-                                });
+                                widget.onUpdateSpinalProcedure('epiduralNeedleSize', selected ? size : null);
                               },
                             );
                           }).toList(),
@@ -645,11 +794,9 @@ class _SpinalAnesthesiaSectionState extends State<SpinalAnesthesiaSection> {
                         Row(
                           children: [
                             Checkbox(
-                              value: epiduralCatheter,
+                              value: widget.spinalProcedure['epiduralCatheter'] == true,
                               onChanged: (value) {
-                                setState(() {
-                                  epiduralCatheter = value ?? false;
-                                });
+                                widget.onUpdateSpinalProcedure('epiduralCatheter', value ?? false);
                               },
                             ),
                             const Text('Epidural Catheter Placed'),
@@ -669,11 +816,9 @@ class _SpinalAnesthesiaSectionState extends State<SpinalAnesthesiaSection> {
                           children: ['L2-3', 'L3-4', 'L4-5'].map((space) {
                             return ChoiceChip(
                               label: Text(space),
-                              selected: selectedSpinalSpace == space,
+                              selected: widget.spinalProcedure['spinalSpace'] == space,
                               onSelected: (selected) {
-                                setState(() {
-                                  selectedSpinalSpace = selected ? space : null;
-                                });
+                                widget.onUpdateSpinalProcedure('spinalSpace', selected ? space : null);
                               },
                             );
                           }).toList(),
@@ -692,11 +837,9 @@ class _SpinalAnesthesiaSectionState extends State<SpinalAnesthesiaSection> {
                           children: ['Thoracic', 'Lumbar', 'Caudal'].map((space) {
                             return ChoiceChip(
                               label: Text(space),
-                              selected: selectedEpiduralSpace == space,
+                              selected: widget.spinalProcedure['epiduralSpace'] == space,
                               onSelected: (selected) {
-                                setState(() {
-                                  selectedEpiduralSpace = selected ? space : null;
-                                });
+                                widget.onUpdateSpinalProcedure('epiduralSpace', selected ? space : null);
                               },
                             );
                           }).toList(),
@@ -714,21 +857,17 @@ class _SpinalAnesthesiaSectionState extends State<SpinalAnesthesiaSection> {
                           children: [
                             ChoiceChip(
                               label: const Text('Sitting'),
-                              selected: position == 'Sitting',
+                              selected: widget.spinalProcedure['position'] == 'Sitting',
                               onSelected: (selected) {
-                                setState(() {
-                                  position = 'Sitting';
-                                });
+                                widget.onUpdateSpinalProcedure('position', 'Sitting');
                               },
                             ),
                             const SizedBox(width: 8),
                             ChoiceChip(
                               label: const Text('Lying'),
-                              selected: position == 'Lying',
+                              selected: widget.spinalProcedure['position'] == 'Lying',
                               onSelected: (selected) {
-                                setState(() {
-                                  position = 'Lying';
-                                });
+                                widget.onUpdateSpinalProcedure('position', 'Lying');
                               },
                             ),
                           ],
@@ -744,7 +883,7 @@ class _SpinalAnesthesiaSectionState extends State<SpinalAnesthesiaSection> {
         
         const SizedBox(height: 16),
         
-        // Monitoring input section
+        // Monitoring input section with 3 drug inputs
         Card(
           elevation: 2,
           child: Padding(
@@ -790,9 +929,96 @@ class _SpinalAnesthesiaSectionState extends State<SpinalAnesthesiaSection> {
                   ],
                 ),
                 
+                const SizedBox(height: 20),
+                
+                // THREE DRUG INPUTS
+                Text('Drugs Administration (Simultaneous)', 
+                  style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 12),
+                
+                Column(
+                  children: drugInputs.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final drugInput = entry.value;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12.0),
+                      child: _buildDrugInput(index, drugInput),
+                    );
+                  }).toList(),
+                ),
+                
+                // Additional "Other Drug" input
+                Card(
+                  color: Colors.grey[100],
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Additional Drug (if needed)',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: TextEditingController(
+                                  text: widget.spinalDrugs['otherDrug']?.toString() ?? ''
+                                ),
+                                decoration: const InputDecoration(
+                                  labelText: 'Other Drug Name',
+                                  border: OutlineInputBorder(),
+                                  hintText: 'e.g., Dexamethasone',
+                                ),
+                                onChanged: (value) {
+                                  widget.onUpdateSpinalDrugs('otherDrug', value);
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: TextField(
+                                controller: TextEditingController(
+                                  text: widget.spinalDrugs['otherDrugDose']?.toString() ?? ''
+                                ),
+                                decoration: const InputDecoration(
+                                  labelText: 'Dose',
+                                  border: OutlineInputBorder(),
+                                  hintText: 'e.g., 8mg',
+                                ),
+                                onChanged: (value) {
+                                  widget.onUpdateSpinalDrugs('otherDrugDose', value);
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            SizedBox(
+                              width: 80,
+                              child: TextField(
+                                controller: TextEditingController(
+                                  text: widget.spinalDrugs['otherDrugRoute']?.toString() ?? 'IV'
+                                ),
+                                decoration: const InputDecoration(
+                                  labelText: 'Route',
+                                  border: OutlineInputBorder(),
+                                ),
+                                onChanged: (value) {
+                                  widget.onUpdateSpinalDrugs('otherDrugRoute', value);
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                
                 const SizedBox(height: 16),
                 
-                // Infusion and drug dropdowns
+                // Infusion dropdown
                 Row(
                   children: [
                     Expanded(
@@ -815,68 +1041,13 @@ class _SpinalAnesthesiaSectionState extends State<SpinalAnesthesiaSection> {
                         },
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        value: selectedDrugType,
-                        decoration: const InputDecoration(
-                          labelText: 'Additional Drug',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: drugTypes.map((type) {
-                          return DropdownMenuItem(
-                            value: type,
-                            child: Text(type),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            selectedDrugType = value;
-                          });
-                        },
-                      ),
+                    const SizedBox(width: 16),
+                    ElevatedButton.icon(
+                      onPressed: _addRecord,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Add Monitoring Record'),
                     ),
                   ],
-                ),
-                
-                const SizedBox(height: 12),
-                
-                // Drug dose and route
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: drugDoseController,
-                        decoration: const InputDecoration(
-                          labelText: 'Drug Dose',
-                          border: OutlineInputBorder(),
-                          hintText: 'e.g., 50mcg',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    SizedBox(
-                      width: 100,
-                      child: TextField(
-                        controller: drugRouteController,
-                        decoration: const InputDecoration(
-                          labelText: 'Route',
-                          border: OutlineInputBorder(),
-                          hintText: 'IV',
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                
-                const SizedBox(height: 16),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: ElevatedButton.icon(
-                    onPressed: _addRecord,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add Monitoring Record'),
-                  ),
                 ),
               ],
             ),
@@ -890,17 +1061,24 @@ class _SpinalAnesthesiaSectionState extends State<SpinalAnesthesiaSection> {
       ],
     );
   }
+}
+
+class DrugInput {
+  String name;
+  String dosage;
+  String route;
+  final String defaultName;
+  final String defaultDosage;
+  final String defaultRoute;
+  final TextEditingController dosageController = TextEditingController();
   
-  @override
-  void dispose() {
-    heavyBupivacaineController.dispose();
-    spinalAdditiveController.dispose();
-    spinalAdditiveDoseController.dispose();
-    ondansetronController.dispose();
-    ephedrineController.dispose();
-    phenylpherineController.dispose();
-    drugDoseController.dispose();
-    drugRouteController.dispose();
-    super.dispose();
+  DrugInput({
+    required this.defaultName,
+    required this.defaultDosage,
+    required this.defaultRoute,
+  }) : name = defaultName,
+       dosage = defaultDosage,
+       route = defaultRoute {
+    dosageController.text = defaultDosage;
   }
 }

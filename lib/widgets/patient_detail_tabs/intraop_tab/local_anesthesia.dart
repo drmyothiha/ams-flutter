@@ -10,6 +10,8 @@ class LocalAnesthesiaSection extends StatefulWidget {
   final DateTime? anesthesiaStartTime;
   final DateTime? surgeryStartTime;
   final VoidCallback onStartSurgery;
+  final Map<String, dynamic> localDrugs;
+  final Function(String, String) onUpdateLocalDrugs;
 
   const LocalAnesthesiaSection({
     super.key,
@@ -21,6 +23,8 @@ class LocalAnesthesiaSection extends StatefulWidget {
     required this.anesthesiaStartTime,
     required this.surgeryStartTime,
     required this.onStartSurgery,
+    required this.localDrugs,
+    required this.onUpdateLocalDrugs,
   });
 
   @override
@@ -28,11 +32,11 @@ class LocalAnesthesiaSection extends StatefulWidget {
 }
 
 class _LocalAnesthesiaSectionState extends State<LocalAnesthesiaSection> {
-  // Local anesthesia drugs
-  final TextEditingController lignocaineController = TextEditingController();
-  final TextEditingController bupivacaineController = TextEditingController();
-  final TextEditingController adrenalineController = TextEditingController();
-  final TextEditingController otherDrugsController = TextEditingController();
+  // Use controllers that sync with passed data
+  late TextEditingController lignocaineController;
+  late TextEditingController bupivacaineController;
+  late TextEditingController adrenalineController;
+  late TextEditingController otherDrugsController;
   
   // Current vital signs (with sliders)
   int hr = 80;
@@ -42,22 +46,70 @@ class _LocalAnesthesiaSectionState extends State<LocalAnesthesiaSection> {
   int spo2 = 98;
   double temp = 36.5;
   
-  // Drug dropdown
-  String? selectedDrugType;
-  final List<String> drugTypes = [
+  // THREE DRUG INPUTS for monitoring section
+  final List<DrugInput> drugInputs = [
+    DrugInput(
+      defaultName: 'Lignocaine',
+      defaultDosage: '',
+      defaultRoute: 'Local',
+    ),
+    DrugInput(
+      defaultName: 'Bupivacaine',
+      defaultDosage: '',
+      defaultRoute: 'Local',
+    ),
+    DrugInput(
+      defaultName: 'Others',
+      defaultDosage: '',
+      defaultRoute: 'Local',
+    ),
+  ];
+  
+  // Drug options dropdown
+  final List<String> drugOptions = [
     'Lignocaine',
     'Bupivacaine',
     'Ropivacaine',
     'Prilocaine',
     'Articaine',
     'Mepivacaine',
+    'Adrenaline',
     'Others'
   ];
   
-  final TextEditingController drugDoseController = TextEditingController();
-  final TextEditingController drugRouteController = TextEditingController();
+  @override
+  void initState() {
+    super.initState();
+    
+    // Initialize controllers with stored data
+    lignocaineController = TextEditingController(
+      text: widget.localDrugs['lignocaine']?.toString() ?? ''
+    );
+    bupivacaineController = TextEditingController(
+      text: widget.localDrugs['bupivacaine']?.toString() ?? ''
+    );
+    adrenalineController = TextEditingController(
+      text: widget.localDrugs['adrenaline']?.toString() ?? ''
+    );
+    otherDrugsController = TextEditingController(
+      text: widget.localDrugs['others']?.toString() ?? ''
+    );
+  }
   
   void _addRecord() {
+    // Collect all drugs that have a name and dosage
+    final administeredDrugs = <DrugAdministered>[];
+    
+    for (final drugInput in drugInputs) {
+      if (drugInput.name.isNotEmpty && drugInput.dosage.isNotEmpty) {
+        administeredDrugs.add(DrugAdministered(
+          drugName: drugInput.name,
+          dosage: drugInput.dosage,
+          route: drugInput.route,
+        ));
+      }
+    }
+    
     final record = AnesthesiaRecord(
       time: DateTime.now(),
       hr: hr,
@@ -66,18 +118,23 @@ class _LocalAnesthesiaSectionState extends State<LocalAnesthesiaSection> {
       rr: rr,
       spo2: spo2,
       temp: temp,
-      drugName: selectedDrugType,
-      drugDose: drugDoseController.text.isNotEmpty ? drugDoseController.text : null,
-      drugRoute: drugRouteController.text.isNotEmpty ? drugRouteController.text : null,
+      drugsAdministered: administeredDrugs,
     );
     
     widget.onAddRecord(record);
     
-    // Clear drug inputs
+    // Clear monitoring drug inputs after recording
+    _clearMonitoringDrugInputs();
+  }
+  
+  void _clearMonitoringDrugInputs() {
     setState(() {
-      selectedDrugType = null;
-      drugDoseController.clear();
-      drugRouteController.clear();
+      for (final drugInput in drugInputs) {
+        drugInput.dosageController.clear();
+        drugInput.name = drugInput.defaultName;
+        drugInput.dosage = '';
+        drugInput.route = drugInput.defaultRoute;
+      }
     });
   }
   
@@ -101,11 +158,7 @@ class _LocalAnesthesiaSectionState extends State<LocalAnesthesiaSection> {
               IconButton(
                 icon: const Icon(Icons.remove, size: 16),
                 onPressed: () {
-                  if (value is int) {
-                    if (value > min) onChanged(value - 1);
-                  } else if (value is double) {
-                    if (value > min) onChanged(value - 0.1);
-                  }
+                  if (value is int && value > min) onChanged(value - 1);
                 },
                 padding: EdgeInsets.zero,
               ),
@@ -127,11 +180,7 @@ class _LocalAnesthesiaSectionState extends State<LocalAnesthesiaSection> {
               IconButton(
                 icon: const Icon(Icons.add, size: 16),
                 onPressed: () {
-                  if (value is int) {
-                    if (value < max) onChanged(value + 1);
-                  } else if (value is double) {
-                    if (value < max) onChanged(value + 0.1);
-                  }
+                  if (value is int && value < max) onChanged(value + 1);
                 },
                 padding: EdgeInsets.zero,
               ),
@@ -269,7 +318,7 @@ class _LocalAnesthesiaSectionState extends State<LocalAnesthesiaSection> {
                                       ),
                                     ),
                                   IconButton(
-                                    icon: Icon(Icons.delete, size: 18, color: Colors.red[300]),
+                                    icon: Icon(Icons.delete, size: 18, color: Colors.red),
                                     onPressed: () {
                                       _showDeleteDialog(index);
                                     },
@@ -296,21 +345,37 @@ class _LocalAnesthesiaSectionState extends State<LocalAnesthesiaSection> {
                             ],
                           ),
                           
-                          // Drug info
-                          if (record.drugName != null)
+                          // Drugs administered
+                          if (record.drugsAdministered.isNotEmpty)
                             Padding(
                               padding: const EdgeInsets.only(top: 8.0),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: Colors.green[50],
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(color: Colors.green),
-                                ),
-                                child: Text(
-                                  '${record.drugName} ${record.drugDose ?? ''} ${record.drugRoute ?? ''}',
-                                  style: const TextStyle(fontSize: 12, color: Colors.green),
-                                ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Drugs Administered:',
+                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 4,
+                                    children: record.drugsAdministered.map((drug) {
+                                      return Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: Colors.green[50],
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(color: Colors.green),
+                                        ),
+                                        child: Text(
+                                          '${drug.drugName} ${drug.dosage} ${drug.route}',
+                                          style: const TextStyle(fontSize: 12, color: Colors.green),
+                                        ),
+                                      );
+                                    }).toList(),
+                                  ),
+                                ],
                               ),
                             ),
                         ],
@@ -379,6 +444,105 @@ class _LocalAnesthesiaSectionState extends State<LocalAnesthesiaSection> {
     );
   }
   
+  Widget _buildDrugInput(int index, DrugInput drugInput) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey[300]!),
+        borderRadius: BorderRadius.circular(8),
+        color: Colors.grey[50],
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Drug ${index + 1}',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: DropdownButtonFormField<String>(
+                  value: drugInput.name,
+                  decoration: const InputDecoration(
+                    labelText: 'Drug Name',
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                  ),
+                  items: drugOptions.map((drug) {
+                    return DropdownMenuItem(
+                      value: drug,
+                      child: Text(drug, style: const TextStyle(fontSize: 14)),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      drugInput.name = value ?? drugInput.defaultName;
+                      drugInput.route = value == 'Adrenaline' ? 'Added to LA' : 'Local';
+                      drugInput.dosageController.text = drugInput.dosage;
+                    });
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 1,
+                child: TextField(
+                  controller: drugInput.dosageController,
+                  decoration: InputDecoration(
+                    labelText: 'Dose',
+                    border: const OutlineInputBorder(),
+                    suffixText: _getDoseUnit(drugInput.name),
+                    hintText: drugInput.name == 'Lignocaine' || drugInput.name == 'Bupivacaine' 
+                      ? 'e.g., 1%' 
+                      : drugInput.name == 'Adrenaline'
+                        ? 'e.g., 1:200,000'
+                        : '',
+                  ),
+                  onChanged: (value) {
+                    drugInput.dosage = value;
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 100,
+                child: TextField(
+                  controller: TextEditingController(text: drugInput.route),
+                  decoration: const InputDecoration(
+                    labelText: 'Route',
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (value) {
+                    drugInput.route = value;
+                  },
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+  
+  String _getDoseUnit(String drugName) {
+    switch (drugName) {
+      case 'Lignocaine':
+      case 'Bupivacaine':
+      case 'Ropivacaine':
+      case 'Prilocaine':
+      case 'Articaine':
+      case 'Mepivacaine':
+        return '%';
+      case 'Adrenaline':
+        return 'ratio';
+      default:
+        return '';
+    }
+  }
+  
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -405,7 +569,7 @@ class _LocalAnesthesiaSectionState extends State<LocalAnesthesiaSection> {
                 ),
                 const SizedBox(height: 16),
                 
-                // Local anesthesia drugs
+                // Local anesthesia drugs (saved permanently)
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -421,6 +585,9 @@ class _LocalAnesthesiaSectionState extends State<LocalAnesthesiaSection> {
                               border: OutlineInputBorder(),
                               hintText: 'e.g., 1%',
                             ),
+                            onChanged: (value) {
+                              widget.onUpdateLocalDrugs('lignocaine', value);
+                            },
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -432,6 +599,9 @@ class _LocalAnesthesiaSectionState extends State<LocalAnesthesiaSection> {
                               border: OutlineInputBorder(),
                               hintText: 'e.g., 0.5%',
                             ),
+                            onChanged: (value) {
+                              widget.onUpdateLocalDrugs('bupivacaine', value);
+                            },
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -443,6 +613,9 @@ class _LocalAnesthesiaSectionState extends State<LocalAnesthesiaSection> {
                               border: OutlineInputBorder(),
                               hintText: 'e.g., 1:200,000',
                             ),
+                            onChanged: (value) {
+                              widget.onUpdateLocalDrugs('adrenaline', value);
+                            },
                           ),
                         ),
                       ],
@@ -455,6 +628,9 @@ class _LocalAnesthesiaSectionState extends State<LocalAnesthesiaSection> {
                         border: OutlineInputBorder(),
                         hintText: 'Enter other medications used',
                       ),
+                      onChanged: (value) {
+                        widget.onUpdateLocalDrugs('others', value);
+                      },
                     ),
                   ],
                 ),
@@ -496,58 +672,23 @@ class _LocalAnesthesiaSectionState extends State<LocalAnesthesiaSection> {
                 
                 const SizedBox(height: 20),
                 
-                // Drug administration with dropdown
+                // THREE DRUG INPUTS for monitoring section
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Additional Drug Administration', style: Theme.of(context).textTheme.titleMedium),
+                    Text('Drugs Administered During Monitoring', 
+                      style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            value: selectedDrugType,
-                            decoration: const InputDecoration(
-                              labelText: 'Drug Type',
-                              border: OutlineInputBorder(),
-                            ),
-                            items: drugTypes.map((type) {
-                              return DropdownMenuItem(
-                                value: type,
-                                child: Text(type),
-                              );
-                            }).toList(),
-                            onChanged: (value) {
-                              setState(() {
-                                selectedDrugType = value;
-                              });
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: TextField(
-                            controller: drugDoseController,
-                            decoration: const InputDecoration(
-                              labelText: 'Dose',
-                              border: OutlineInputBorder(),
-                              hintText: 'e.g., 50mg',
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        SizedBox(
-                          width: 100,
-                          child: TextField(
-                            controller: drugRouteController,
-                            decoration: const InputDecoration(
-                              labelText: 'Route',
-                              border: OutlineInputBorder(),
-                              hintText: 'IV',
-                            ),
-                          ),
-                        ),
-                      ],
+                    
+                    Column(
+                      children: drugInputs.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final drugInput = entry.value;
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12.0),
+                          child: _buildDrugInput(index, drugInput),
+                        );
+                      }).toList(),
                     ),
                   ],
                 ),
@@ -580,8 +721,29 @@ class _LocalAnesthesiaSectionState extends State<LocalAnesthesiaSection> {
     bupivacaineController.dispose();
     adrenalineController.dispose();
     otherDrugsController.dispose();
-    drugDoseController.dispose();
-    drugRouteController.dispose();
+    for (final drugInput in drugInputs) {
+      drugInput.dosageController.dispose();
+    }
     super.dispose();
+  }
+}
+
+class DrugInput {
+  String name;
+  String dosage;
+  String route;
+  final String defaultName;
+  final String defaultDosage;
+  final String defaultRoute;
+  final TextEditingController dosageController = TextEditingController();
+  
+  DrugInput({
+    required this.defaultName,
+    required this.defaultDosage,
+    required this.defaultRoute,
+  }) : name = defaultName,
+       dosage = defaultDosage,
+       route = defaultRoute {
+    dosageController.text = defaultDosage;
   }
 }
