@@ -1238,7 +1238,7 @@ class _PreopTabState extends State<PreopTab> {
     });
 
     try {
-       // Save to API
+      // Save to API
       // final result = await _preopService.savePreopAssessment(
       //   appointmentId: widget.appointmentId, // You need to pass appointment from parent
       //   preopData: preopData,
@@ -2227,7 +2227,7 @@ class _PreopTabState extends State<PreopTab> {
           ),
 
           // 1. Overall Summary
-          _buildSummaryCard(),
+          // _buildSummaryCard(),
 
           // 2. General Preoperative Checklist (existing)
           _buildChecklistSection(
@@ -2247,37 +2247,37 @@ class _PreopTabState extends State<PreopTab> {
           // 2. Anaesthesia Assessment (NEW)
           _buildAnaesthesiaAssessmentSection(),
           // 4. Cardiac Assessment
-          _buildChecklistSection(
-            title: 'Cardiac Assessment',
-            icon: Icons.favorite,
-            color: Colors.red,
-            checklist: _cardiacChecklist,
-            selectedItems: _cardiacChecklistSelected,
-            onSelectionChanged: (newList) {
-              setState(() {
-                _cardiacChecklistSelected = newList;
-              });
-            },
-            description: 'Cardiovascular system evaluation',
-          ),
+          // _buildChecklistSection(
+          //   title: 'Cardiac Assessment',
+          //   icon: Icons.favorite,
+          //   color: Colors.red,
+          //   checklist: _cardiacChecklist,
+          //   selectedItems: _cardiacChecklistSelected,
+          //   onSelectionChanged: (newList) {
+          //     setState(() {
+          //       _cardiacChecklistSelected = newList;
+          //     });
+          //   },
+          //   description: 'Cardiovascular system evaluation',
+          // ),
 
           // 5. Respiratory Assessment
-          _buildChecklistSection(
-            title: 'Respiratory Assessment',
-            icon: Icons.air,
-            color: Colors.green,
-            checklist: _respiratoryChecklist,
-            selectedItems: _respiratoryChecklistSelected,
-            onSelectionChanged: (newList) {
-              setState(() {
-                _respiratoryChecklistSelected = newList;
-              });
-            },
-            description: 'Pulmonary system evaluation',
-          ),
+          // _buildChecklistSection(
+          //   title: 'Respiratory Assessment',
+          //   icon: Icons.air,
+          //   color: Colors.green,
+          //   checklist: _respiratoryChecklist,
+          //   selectedItems: _respiratoryChecklistSelected,
+          //   onSelectionChanged: (newList) {
+          //     setState(() {
+          //       _respiratoryChecklistSelected = newList;
+          //     });
+          //   },
+          //   description: 'Pulmonary system evaluation',
+          // ),
 
           // 6. Laboratory Assessment
-          _buildLaboratorySection(),
+          // _buildLaboratorySection(),
           // 7. Medical History
           _buildSection(
             title: 'Medical History',
