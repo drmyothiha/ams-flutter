@@ -1,3 +1,4 @@
+import 'package:ams/screens/medical_history_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -37,7 +38,15 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
       _loadPatientData();
     }
   }
-
+  // when user want to see the medical history
+  void _navigateToMedicalHistory() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MedicalHistoryScreen(appointment: widget.appointment),
+      ),
+    );
+  }
   Future<void> _loadPatientData() async {
     setState(() {
       _loading = true;
@@ -176,323 +185,584 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
       );
     }
 
-    // Use either the API data or the appointment data we already have
+     // Use either the API data or the appointment data we already have
     final data = _apiData ?? widget.appointment.raw;
-
+    
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Appointment Information
-          _buildSectionCard('Appointment Information', [
-            _buildInfoRow('Appointment ID', widget.appointment.id),
-            _buildInfoRow('Resource Type', widget.appointment.resourceType),
-            _buildStatusRow('Status', widget.appointment.status),
-            _buildInfoRow('Start', _formatDateTime(widget.appointment.start)),
-            _buildInfoRow('End', _formatDateTime(widget.appointment.end)),
-            _buildInfoRow(
-              'Duration',
-              '${_calculateDuration(widget.appointment.start, widget.appointment.end)} minutes',
-            ),
-            if (widget.appointment.createdAt.isNotEmpty)
-              _buildInfoRow('Created', widget.appointment.createdAt),
-          ]),
-
-          const SizedBox(height: 16),
-
-          // Patient Information
-          _buildSectionCard('Patient Information', [
-            _buildInfoRow('Patient Name', widget.appointment.patientName),
-            _buildInfoRow('Patient ID', _extractPatientId(data)),
-            if (widget.appointment.diagnosis != null)
-              _buildInfoRow('Diagnosis', widget.appointment.diagnosis!),
-            if (widget.appointment.procedureCode != null)
-              _buildInfoRow(
-                'Procedure Code',
-                widget.appointment.procedureCode!,
+          // Clickable Patient Information Box - NOW NAVIGATES TO MEDICAL HISTORY
+          GestureDetector(
+            onTap: _navigateToMedicalHistory,
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: Card(
+                elevation: 3,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: Colors.blue.withOpacity(0.3), width: 1),
+                ),
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.blue.shade50,
+                        Colors.white,
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'PATIENT INFORMATION',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.blue,
+                                      letterSpacing: 1,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    widget.appointment.patientName,
+                                    style: const TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.blue,
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.blue.withOpacity(0.3),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: const Row(
+                                children: [
+                                  Text(
+                                    'View Medical History',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  SizedBox(width: 8),
+                                  Icon(
+                                    Icons.arrow_forward,
+                                    size: 16,
+                                    color: Colors.white,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        Wrap(
+                          spacing: 20,
+                          runSpacing: 12,
+                          children: [
+                            _buildPatientInfoItem(
+                              Icons.badge,
+                              'Patient ID',
+                              _extractPatientId(data),
+                            ),
+                            _buildPatientInfoItem(
+                              Icons.medical_services,
+                              'Diagnosis',
+                              widget.appointment.diagnosis ?? 'Not specified',
+                            ),
+                            _buildPatientInfoItem(
+                              Icons.code,
+                              'Procedure',
+                              widget.appointment.procedureCode ?? 'N/A',
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        const Divider(height: 1, color: Colors.blueGrey),
+                        const SizedBox(height: 12),
+                        const Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              size: 16,
+                              color: Colors.blue,
+                            ),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Click here to view complete medical history, examination reports, lab results, and imaging studies.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.blueGrey,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
-          ]),
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // Appointment Information
+          Card(
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.purple.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.calendar_today,
+                          color: Colors.purple,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'Appointment Information',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  _buildInfoRow('Appointment ID', widget.appointment.id),
+                  _buildInfoRow('Resource Type', widget.appointment.resourceType),
+                  _buildStatusRow('Status', widget.appointment.status),
+                  _buildInfoRow('Start', _formatDateTime(widget.appointment.start)),
+                  _buildInfoRow('End', _formatDateTime(widget.appointment.end)),
+                  _buildInfoRow('Duration', '${_calculateDuration(widget.appointment.start, widget.appointment.end)} minutes'),
+                  if (widget.appointment.createdAt.isNotEmpty)
+                    _buildInfoRow('Created', widget.appointment.createdAt),
+                ],
+              ),
+            ),
+          ),
 
           const SizedBox(height: 16),
 
           // Doctor Information
-          _buildSectionCard('Doctor Information', [
-            _buildInfoRow('Doctor Name', widget.appointment.doctorName),
-            _buildInfoRow('Doctor ID', _extractDoctorId(data)),
-          ]),
+          Card(
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.medical_services,
+                          color: Colors.green,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'Doctor Information',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  _buildInfoRow('Doctor Name', widget.appointment.doctorName),
+                  _buildInfoRow('Doctor ID', _extractDoctorId(data)),
+                ],
+              ),
+            ),
+          ),
 
           const SizedBox(height: 16),
 
           // Location Information
-          _buildSectionCard('Location Information', [
-            _buildInfoRow('Location', _extractLocation(data)),
-            _buildInfoRow('Room', _extractRoomNumber(data)),
-          ]),
+          Card(
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.location_on,
+                          color: Colors.orange,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'Location Information',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  _buildInfoRow('Location', _extractLocation(data)),
+                  _buildInfoRow('Room', _extractRoomNumber(data)),
+                ],
+              ),
+            ),
+          ),
 
           const SizedBox(height: 16),
 
           // Medical Details from Raw Data
           if (data.isNotEmpty) ...[
-            _buildMedicalDetailsCard(data),
+            Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.health_and_safety,
+                            color: Colors.red,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Text(
+                          'Medical Details',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    _buildMedicalDetailsCardContent(data),
+                  ],
+                ),
+              ),
+            ),
             const SizedBox(height: 16),
           ],
 
           // Participants Section
           if (widget.appointment.participants.isNotEmpty)
-            _buildParticipantsCard(widget.appointment.participants),
+            Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.teal.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.group,
+                            color: Colors.teal,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Text(
+                          'Participants',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    ..._buildParticipantsList(widget.appointment.participants),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 
-  Widget _buildMedicalDetailsCard(Map<String, dynamic> data) {
-    // Try to get raw data first, then fall back to direct properties
-    final rawData = data['raw'] as Map<String, dynamic>? ?? data;
+  // New helper method for patient info items
+  Widget _buildPatientInfoItem(IconData icon, String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.blueGrey.shade100),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: Colors.blueGrey),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: Colors.blueGrey,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 
+  // Updated medical details to be a simpler card content
+  Widget _buildMedicalDetailsCardContent(Map<String, dynamic> data) {
+    final rawData = data['raw'] as Map<String, dynamic>? ?? data;
     final serviceType = rawData['serviceType'] as List?;
     final reasonCode = rawData['reasonCode'] as List?;
     final comment = rawData['comment'] as String?;
     final priority = rawData['priority'] as int?;
-    final minutesDuration = rawData['minutesDuration'] as int?;
 
-    return Card(
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Medical Details',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-
-            if (minutesDuration != null)
-              _buildInfoRow('Duration (minutes)', minutesDuration.toString()),
-
-            if (serviceType != null && serviceType.isNotEmpty)
-              _buildMedicalDetailSection('Service Type', serviceType),
-
-            if (reasonCode != null && reasonCode.isNotEmpty)
-              _buildMedicalDetailSection('Reason Code', reasonCode),
-
-            if (comment != null && comment.isNotEmpty)
-              _buildInfoRow('Comment', comment),
-
-            if (priority != null)
-              _buildInfoRow('Priority', priority.toString()),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMedicalDetailSection(String title, List<dynamic> items) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          '$title:',
-          style: const TextStyle(
-            fontWeight: FontWeight.w500,
-            color: Colors.grey,
-          ),
-        ),
-        const SizedBox(height: 4),
-        ...items.map((item) {
-          if (item is Map<String, dynamic>) {
-            final text = item['text'] as String?;
-            final coding = item['coding'] as List?;
-
-            if (text != null) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('• $text', style: const TextStyle(fontSize: 14)),
-                    if (coding != null && coding.isNotEmpty)
-                      ...coding.map((code) {
-                        if (code is Map<String, dynamic>) {
-                          final system = code['system'] as String?;
-                          final codeValue = code['code'] as String?;
-                          final display = code['display'] as String?;
-
-                          return Padding(
-                            padding: const EdgeInsets.only(left: 16, top: 4),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                if (display != null)
-                                  Text(
-                                    '  - $display',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey[600],
-                                    ),
-                                  ),
-                                if (codeValue != null)
-                                  Padding(
-                                    padding: const EdgeInsets.only(left: 16),
-                                    child: Text(
-                                      '    Code: $codeValue',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: Colors.grey[500],
-                                      ),
-                                    ),
-                                  ),
-                                if (system != null)
-                                  Padding(
-                                    padding: const EdgeInsets.only(left: 16),
-                                    child: Text(
-                                      '    System: ${_shortenUrl(system)}',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: Colors.grey[400],
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          );
-                        }
-                        return const SizedBox();
-                      }).toList(),
-                  ],
-                ),
-              );
-            }
-          }
-          return const SizedBox();
-        }).toList(),
-        const SizedBox(height: 12),
+        if (serviceType != null && serviceType.isNotEmpty)
+          _buildMedicalDetailItem('Service Type', serviceType.first['text']),
+        
+        if (reasonCode != null && reasonCode.isNotEmpty)
+          _buildMedicalDetailItem('Reason', reasonCode.first['text']),
+        
+        if (comment != null && comment.isNotEmpty)
+          _buildMedicalDetailItem('Comment', comment),
+        
+        if (priority != null)
+          _buildMedicalDetailItem('Priority', 'Level $priority'),
       ],
     );
   }
 
-  Widget _buildParticipantsCard(List<dynamic> participants) {
-    return Card(
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Participants',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+  Widget _buildMedicalDetailItem(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 120,
+            padding: const EdgeInsets.only(right: 16),
+            child: Text(
+              '$label:',
+              style: const TextStyle(
+                fontWeight: FontWeight.w500,
+                color: Colors.grey,
+              ),
             ),
-            const SizedBox(height: 16),
-            ...participants.map((participant) {
-              if (participant is Map<String, dynamic>) {
-                final actor = participant['actor'] as Map<String, dynamic>?;
-                final status = participant['status'] as String?;
-                final required = participant['required'] as String?;
-
-                final display = actor?['display'] as String?;
-                final reference = actor?['reference'] as String?;
-
-                // Determine participant type
-                String type = 'Unknown';
-                if (reference?.contains('Patient') == true) type = 'Patient';
-                if (reference?.contains('Practitioner') == true)
-                  type = 'Doctor';
-                if (reference?.contains('Location') == true) type = 'Location';
-
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _getParticipantColor(type),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              type,
-                              style: const TextStyle(
-                                fontSize: 10,
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              display ?? 'Unknown',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (reference != null)
-                        Padding(
-                          padding: const EdgeInsets.only(left: 16, top: 2),
-                          child: Text(
-                            'ID: $reference',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                        ),
-                      if (status != null)
-                        Padding(
-                          padding: const EdgeInsets.only(left: 16, top: 2),
-                          child: Text(
-                            'Status: $status',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: _getStatusColor(status),
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      const SizedBox(height: 8),
-                      const Divider(height: 1),
-                    ],
-                  ),
-                );
-              }
-              return const SizedBox();
-            }).toList(),
-          ],
-        ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.w400),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildSectionCard(String title, List<Widget> children) {
-    return Card(
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            ...children,
-          ],
-        ),
-      ),
-    );
+  List<Widget> _buildParticipantsList(List<dynamic> participants) {
+    return participants.map((participant) {
+      if (participant is Map<String, dynamic>) {
+        final actor = participant['actor'] as Map<String, dynamic>?;
+        final status = participant['status'] as String?;
+        
+        final display = actor?['display'] as String?;
+        final reference = actor?['reference'] as String?;
+        
+        // Determine participant type
+        String type = 'Unknown';
+        Color typeColor = Colors.grey;
+        if (reference?.contains('Patient') == true) {
+          type = 'Patient';
+          typeColor = Colors.blue;
+        }
+        if (reference?.contains('Practitioner') == true) {
+          type = 'Doctor';
+          typeColor = Colors.green;
+        }
+        if (reference?.contains('Location') == true) {
+          type = 'Location';
+          typeColor = Colors.orange;
+        }
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: typeColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  type,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: typeColor,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      display ?? 'Unknown',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    if (reference != null)
+                      Text(
+                        reference,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (status != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: status == 'accepted'
+                        ? Colors.green.withOpacity(0.1)
+                        : Colors.orange.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    status,
+                    style: TextStyle(
+                      color: status == 'accepted' ? Colors.green : Colors.orange,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      }
+      return const SizedBox();
+    }).toList();
   }
 
   Widget _buildInfoRow(String label, String value) {
@@ -569,7 +839,6 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
       ),
     );
   }
-
   // Helper methods
   String _formatDateTime(DateTime dateTime) {
     final localTime = dateTime.toLocal();

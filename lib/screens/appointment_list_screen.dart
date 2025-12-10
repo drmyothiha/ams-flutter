@@ -5,6 +5,7 @@ import 'dart:io';
 import 'patient_detail_screen.dart';
 import '../models/appointment.dart';
 import 'medical_history_screen.dart';
+import '../widgets/edit_appointment_dialog.dart';
 
 class AppointmentListScreen extends StatefulWidget {
   const AppointmentListScreen({super.key});
@@ -138,6 +139,81 @@ class _AppointmentListScreenState extends State<AppointmentListScreen> {
         builder: (context) => PatientDetailScreen(appointment: appointment),
       ),
     );
+  }
+
+  void _handleEditAppointment(Appointment appointment) async {
+    final result = await showDialog(
+      context: context,
+      builder: (context) => EditAppointmentDialog(
+        appointment: appointment,
+        onStatusUpdate: _updateAppointmentStatus,
+      ),
+    );
+
+    if (result == true) {
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Appointment ${appointment.id} updated successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
+  void _updateAppointmentStatus(
+    Appointment updatedAppointment,
+    String action,
+    String notes,
+  ) {
+    // Update local state
+    setState(() {
+      final index = _appointments.indexWhere(
+        (appt) => appt.id == updatedAppointment.id,
+      );
+      if (index != -1) {
+        _appointments[index] = updatedAppointment;
+      }
+    });
+
+    // TODO: Call your API here
+    print('Updating appointment ${updatedAppointment.id}:');
+    print('  Action: $action');
+    print('  New Status: ${updatedAppointment.status}');
+    print('  Notes: $notes');
+
+    // Example API call structure:
+    // _callUpdateApi(updatedAppointment.id, action, notes);
+  }
+
+  Future<void> _callUpdateApi(
+    String appointmentId,
+    String action,
+    String notes,
+  ) async {
+    try {
+      final client = await _getHttpClient();
+      final response = await client.post(
+        Uri.parse(
+          'http://192.168.100.8/api/appointments/$appointmentId/update',
+        ),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: json.encode({
+          'action': action,
+          'notes': notes,
+          'timestamp': DateTime.now().toIso8601String(),
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        print('API update successful');
+      }
+    } catch (e) {
+      print('API update error: $e');
+    }
   }
 
   Widget _buildStatusBadge(String status) {
@@ -355,7 +431,7 @@ class _AppointmentListScreenState extends State<AppointmentListScreen> {
                 _navigateToPatientDetail(appointment);
                 break;
               case 'edit':
-                // TODO: Implement edit
+                _handleEditAppointment(appointment);
                 break;
               case 'cancel':
                 _showCancelConfirmation(appointment);
